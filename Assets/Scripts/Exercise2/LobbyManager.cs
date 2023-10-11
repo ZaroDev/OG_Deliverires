@@ -40,7 +40,7 @@ namespace Exercise2
 
         public void SendMessage()
         {
-            string message = $"{DateTime.Now.TimeOfDay} [{NetworkData.NetworkSocket.Name}]:{chatInputField.text}";
+            string message = $"{DateTime.Now} [{NetworkData.NetworkSocket.Name}]:{chatInputField.text}";
             byte[] data = Encoding.ASCII.GetBytes(message);
             int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp
                 ? SendMessageTCP(data)

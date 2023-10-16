@@ -29,8 +29,7 @@ namespace Exercise2
             else
                 InitServerUDP();
             
-            NetworkData.NetworkSocket.Socket.Bind(NetworkData.EndPoint);
-            NetworkData.NetworkSocket.Socket.Listen(10);
+            
             
             lock (_clientMutex)
             {
@@ -39,9 +38,7 @@ namespace Exercise2
             
             Debug.Log($"Server created with IP: {NetworkData.NetworkSocket.IPAddrStr} listening on port {NetworkData.Port}");
             
-            // Accept incoming connections
-            _acceptThread = new Thread(AcceptJob);
-            _acceptThread.Start();
+           
         }
 
         private void Update()
@@ -63,6 +60,7 @@ namespace Exercise2
             Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             IPAddress ipAddress = NetworkData.GetIPAddress();
             NetworkData.NetworkSocket = new ServerNetworkSocket(ServerName, serverSocket, ipAddress, ipAddress.ToString());
+            NetworkData.NetworkSocket.Socket.Bind(NetworkData.EndPoint);
         }
 
         void InitServerTCP()
@@ -70,7 +68,12 @@ namespace Exercise2
             Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             IPAddress ipAddress = NetworkData.GetIPAddress();
             NetworkData.NetworkSocket = new ServerNetworkSocket(ServerName, serverSocket, ipAddress, ipAddress.ToString());
-        }
+            NetworkData.NetworkSocket.Socket.Bind(NetworkData.EndPoint);
+            NetworkData.NetworkSocket.Socket.Listen(10);
+            // Accept incoming connections
+            _acceptThread = new Thread(AcceptJob);
+            _acceptThread.Start();
+        } 
 
         void UpdatePlayerList()
         {
@@ -116,7 +119,7 @@ namespace Exercise2
         {
             while (true)
             {
-                int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp ? ReceiveTCP(socket) : ReceiveUDP(socket);
+                int rBytes = ReceiveTCP(socket);
                 
                 lock (_clientMutex)
                 {
@@ -136,20 +139,23 @@ namespace Exercise2
             }
         }
 
-        int ReceiveUDP(NetworkSocket socket)
+        int ReceiveUDP()
         {
             byte[] data = new byte[2048];
-            int rBytes = socket.Socket.ReceiveFrom(data, ref NetworkData.EndPoint);
-            
-            
+            int rBytes = NetworkData.NetworkSocket.Socket.ReceiveFrom(data, ref NetworkData.EndPoint);
             if (rBytes == 0)
                 return rBytes;
-            
-            socket.Name = Encoding.ASCII.GetString(data, 0, rBytes);
-            Debug.Log($"Client registered with name [{socket.Name}]");
+
+            string userName = Encoding.ASCII.GetString(data, 0, rBytes);
+            Debug.Log($"Client connected with name [{userName}]");
+
+            lock (_clientMutex)
+            {
+                _clientSockets.Add(new NetworkSocket(userName));
+            }
 
             data = Encoding.ASCII.GetBytes(NetworkData.NetworkSocket.Name);
-            socket.Socket.SendTo(data, data.Length, SocketFlags.None, NetworkData.EndPoint);
+            NetworkData.NetworkSocket.Socket.SendTo(data, data.Length, SocketFlags.None, NetworkData.EndPoint);
             
             return rBytes;
         }

@@ -20,6 +20,11 @@ namespace Exercise2
         public IPAddress IPAddress;
         public Socket Socket;
 
+        public NetworkSocket(string name)
+        {
+            Name = name;
+        }
+
         public NetworkSocket(string name, Socket socket, IPAddress ipAddress, string ipAddressStr)
         {
             Name = name;

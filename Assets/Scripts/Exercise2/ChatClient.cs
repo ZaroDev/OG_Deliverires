@@ -11,7 +11,7 @@ namespace Exercise2
     public class ChatClient : MonoBehaviour
     {
         private Thread _messageThread;
-        private List<string> _chatMessages;
+        private List<Message> _chatMessages;
         private readonly object _mutex = new();
         private bool _requestUpdateMessages = false;
         private bool _disconnection = false;
@@ -30,7 +30,8 @@ namespace Exercise2
             if (_requestUpdateMessages)
             {
                 _lobbyManager.UpdateMessageBox();
-                _requestUpdateMessages = false;
+                lock(_mutex)
+                    _requestUpdateMessages = false;
             }
 
             if (_disconnection)
@@ -46,9 +47,8 @@ namespace Exercise2
                 int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp ? ReceiveMessagesTCP() : ReceiveMessagesUDP();
                 
                 lock (_mutex)
-                {
                     _requestUpdateMessages = true;
-                }
+                
                 
                 // Handle client disconnection
                 if (rBytes == 0)
@@ -59,7 +59,7 @@ namespace Exercise2
                         Debug.Log(msg);
                         lock (_mutex)
                         {
-                            _chatMessages.Add(msg);
+                            _chatMessages.Add(new Message(null, msg, null));
                             _disconnection = true;
                         }
                     }
@@ -78,10 +78,9 @@ namespace Exercise2
             string message = Encoding.ASCII.GetString(data, 0, rBytes);
             Debug.Log($"Client received message: {message}");
             
-            // Add the message and replicate to all clients
             lock (_mutex)
             {
-                _chatMessages.Add(message);
+                _chatMessages.Add(JsonUtility.FromJson<Message>(message));
             }
             return rBytes;
         }
@@ -90,14 +89,15 @@ namespace Exercise2
         {
             byte[] data = new byte[2048];
             int rBytes = NetworkData.NetworkSocket.Socket.ReceiveFrom(data, SocketFlags.None, ref NetworkData.EndPoint);
-            
+            if (rBytes == 0)
+                return rBytes;
+
             string message = Encoding.ASCII.GetString(data, 0, rBytes);
             Debug.Log($"Client received message: {message}");
             
-            // Add the message and replicate to all clients
             lock (_mutex)
             {
-                _chatMessages.Add(message);
+                _chatMessages.Add(JsonUtility.FromJson<Message>(message));
             }
             
             return rBytes;

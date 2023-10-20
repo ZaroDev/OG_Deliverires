@@ -61,6 +61,16 @@ namespace Exercise2
             IPAddress ipAddress = NetworkData.GetIPAddress();
             NetworkData.NetworkSocket = new ServerNetworkSocket(ServerName, serverSocket, ipAddress, ipAddress.ToString());
             NetworkData.NetworkSocket.Socket.Bind(NetworkData.EndPoint);
+
+            _acceptThread = new Thread(() => 
+            {
+                while(true)
+                {
+                    ReceiveUDP();
+                }
+            });
+
+            _acceptThread.Start();
         }
 
         void InitServerTCP()

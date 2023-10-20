@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 
 namespace Exercise2
 {
@@ -11,8 +12,11 @@ namespace Exercise2
     {
         [SerializeField] private TextMeshProUGUI playerNameText;
         [SerializeField] private TMP_InputField chatInputField;
-        [SerializeField] private TextMeshProUGUI chatBox;
-        public List<string> chatMessages = new();
+        [SerializeField] private VerticalLayoutGroup chatBox;
+        [SerializeField] private GameObject messagePrefab;
+        public List<Message> chatMessages = new();
+
+        private List<Message> _postedMessages = new();
 
         private void Awake()
         {
@@ -31,16 +35,20 @@ namespace Exercise2
 
         public void UpdateMessageBox()
         {
-            chatBox.text = "";
-            foreach (var message in chatMessages)
+            Debug.Log("Updated message box");
+            foreach(var msg in chatMessages)
             {
-                chatBox.text += $"{message}\n";
+                _postedMessages.Add(msg);
+                var message = Instantiate(messagePrefab, chatBox.transform);
+                message.GetComponent<ChatMessageUI>().SetMessages(msg);
             }
+            chatMessages.Clear();
         }
 
         public void SendMessage()
         {
-            string message = $"{DateTime.Now} [{NetworkData.NetworkSocket.Name}]:{chatInputField.text}";
+            var msg = new Message(NetworkData.NetworkSocket.Name, chatInputField.text, DateTime.Now.ToString());
+            string message = JsonUtility.ToJson(msg);
             byte[] data = Encoding.ASCII.GetBytes(message);
             int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp
                 ? SendMessageTCP(data)
@@ -49,23 +57,13 @@ namespace Exercise2
 
         private int SendMessageUDP(byte[] message)
         {
-            switch (NetworkData.NetworkSocket.ConnectionType)
+            if(NetworkData.NetworkSocket.ConnectionType == ConnectionType.Host)
             {
-                case ConnectionType.Host:
-                {
-                    chatMessages.Add(Encoding.ASCII.GetString(message));
-                    UpdateMessageBox();
-                    foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
-                    {
-                        client.Socket.SendTo(message, SocketFlags.None, NetworkData.EndPoint);
-                    }
-                    return 0;
-                }
-                case ConnectionType.Client:
-                    return NetworkData.NetworkSocket.Socket.SendTo(message, SocketFlags.None, NetworkData.EndPoint);
+                chatMessages.Add(JsonUtility.FromJson<Message>(Encoding.ASCII.GetString(message)));
+                UpdateMessageBox();
             }
-
-            return 0;
+            
+            return NetworkData.NetworkSocket.Socket.SendTo(message, SocketFlags.None, NetworkData.EndPoint);
         }
 
         private int SendMessageTCP(byte[] message)
@@ -74,7 +72,7 @@ namespace Exercise2
             {
                 case ConnectionType.Host:
                 {
-                    chatMessages.Add(Encoding.ASCII.GetString(message));
+                    chatMessages.Add(JsonUtility.FromJson<Message>(Encoding.ASCII.GetString(message)));
                     UpdateMessageBox();
                     foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
                     {

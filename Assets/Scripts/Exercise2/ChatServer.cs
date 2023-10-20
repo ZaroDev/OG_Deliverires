@@ -12,8 +12,9 @@ namespace Exercise2
         private readonly List<Thread> _messageThread = new();
         private readonly object _clientMutex = new();
         private bool _requestUpdateMessages = false;
-        private List<string> _chatMessages;
+        private List<Message> _chatMessages;
         private LobbyManager _lobbyManager;
+
         private void Awake()
         {
             _lobbyManager = GetComponent<LobbyManager>();
@@ -32,7 +33,8 @@ namespace Exercise2
             if (_requestUpdateMessages)
             {
                 _lobbyManager.UpdateMessageBox();
-                _requestUpdateMessages = false;
+                lock(_clientMutex)
+                    _requestUpdateMessages = false;
             }
         }
 
@@ -40,12 +42,10 @@ namespace Exercise2
         {
             while (true)
             {
-                int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp ? ReceiveMessagesTCP(socket) : ReceiveMessagesUDP(socket);
+                int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp ? ReceiveMessagesTCP(socket) : ReceiveMessagesUDP();
                 
-                lock (_clientMutex)
-                {
+                lock(_clientMutex)
                     _requestUpdateMessages = true;
-                }
                 
                 // Handle client disconnection
                 if (rBytes == 0)
@@ -56,7 +56,7 @@ namespace Exercise2
                         Debug.Log(msg);
                         lock (_clientMutex)
                         {
-                            _chatMessages.Add(msg);
+                            _chatMessages.Add(new Message(null, msg, null));
                         }
                         ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients.Remove(socket);
                     }
@@ -78,7 +78,7 @@ namespace Exercise2
             // Add the message and replicate to all clients
             lock (_clientMutex)
             {
-                _chatMessages.Add(message);
+                _chatMessages.Add(JsonUtility.FromJson<Message>(message));
                 
                 foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
                 {
@@ -88,10 +88,10 @@ namespace Exercise2
             return rBytes;
         }
         
-        int ReceiveMessagesUDP(NetworkSocket socket)
+        int ReceiveMessagesUDP()
         {
             byte[] data = new byte[2048];
-            int rBytes = socket.Socket.ReceiveFrom(data, SocketFlags.None, ref NetworkData.EndPoint);
+            int rBytes = NetworkData.NetworkSocket.Socket.ReceiveFrom(data, SocketFlags.None, ref NetworkData.EndPoint);
             
             string message = Encoding.ASCII.GetString(data, 0, rBytes);
             Debug.Log($"Server received message: {message}");
@@ -99,13 +99,9 @@ namespace Exercise2
             // Add the message and replicate to all clients
             lock (_clientMutex)
             {
-                _chatMessages.Add(message);
-                
-                foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
-                {
-                    client.Socket.Send(data);
-                }
+                _chatMessages.Add(JsonUtility.FromJson<Message>(message));
             }
+            NetworkData.NetworkSocket.Socket.SendTo(data, NetworkData.EndPoint);
             
             return rBytes;
         }

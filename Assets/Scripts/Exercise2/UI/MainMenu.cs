@@ -1,10 +1,17 @@
 using System.Net.Sockets;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-namespace Exercise2
+
+namespace Exercise2.UI
 {
     public class MainMenu : MonoBehaviour
     {
+        private void Awake()
+        {
+            // Clean up all sockets if any
+            NetworkData.CleanUp();
+        }
+
         public void SetProtocol(int value)
         {
             switch (value)

@@ -1,9 +1,8 @@
-using System.Collections;
-using System.Collections.Generic;
+using Exercise2.Chat;
 using TMPro;
 using UnityEngine;
 
-namespace Exercise2
+namespace Exercise2.UI
 {
     public class ChatMessageUI : MonoBehaviour
     {

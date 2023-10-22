@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Exercise2.Chat;
+using Exercise2.UI;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
@@ -12,16 +15,20 @@ namespace Exercise2
     {
         [SerializeField] private TextMeshProUGUI playerNameText;
         [SerializeField] private TMP_InputField chatInputField;
-        [SerializeField] private VerticalLayoutGroup chatBox;
+        [SerializeField] private GameObject chat;
+        [SerializeField] private GameObject waitForHost;
+        [SerializeField] private Transform chatBox;
         [SerializeField] private GameObject messagePrefab;
+        [SerializeField] private AudioSource messageAudio;
         public List<Message> chatMessages = new();
-
-        private List<Message> _postedMessages = new();
 
         private void Awake()
         {
             playerNameText.text = NetworkData.NetworkSocket.Name;
-
+            
+            chat.SetActive(false);
+            waitForHost.SetActive(true);
+            
             switch (NetworkData.NetworkSocket.ConnectionType)
             {
                 case ConnectionType.Client:
@@ -33,21 +40,27 @@ namespace Exercise2
             }
         }
 
+        public void StartClientChat()
+        {
+            chat.SetActive(true);
+            waitForHost.SetActive(false);
+        }
+        
         public void UpdateMessageBox()
         {
-            Debug.Log("Updated message box");
             foreach(var msg in chatMessages)
             {
-                _postedMessages.Add(msg);
-                var message = Instantiate(messagePrefab, chatBox.transform);
+                var message = Instantiate(messagePrefab, chatBox);
                 message.GetComponent<ChatMessageUI>().SetMessages(msg);
+                messageAudio.Play();
             }
             chatMessages.Clear();
         }
 
         public void SendMessage()
         {
-            var msg = new Message(NetworkData.NetworkSocket.Name, chatInputField.text, DateTime.Now.ToString());
+            var msg = new Message(NetworkData.NetworkSocket.Name, chatInputField.text, DateTime.Now.ToString("MM-dd hh:mm"));
+            chatInputField.text = "";
             string message = JsonUtility.ToJson(msg);
             byte[] data = Encoding.ASCII.GetBytes(message);
             int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp
@@ -61,9 +74,16 @@ namespace Exercise2
             {
                 chatMessages.Add(JsonUtility.FromJson<Message>(Encoding.ASCII.GetString(message)));
                 UpdateMessageBox();
+
+                foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
+                {
+                    NetworkData.NetworkSocket.Socket.SendTo(message, SocketFlags.None, client.EndPoint);
+                }
+                
+                return 0;
             }
-            
-            return NetworkData.NetworkSocket.Socket.SendTo(message, SocketFlags.None, NetworkData.EndPoint);
+            else
+                return NetworkData.NetworkSocket.Socket.SendTo(message, SocketFlags.None, NetworkData.EndPoint);
         }
 
         private int SendMessageTCP(byte[] message)
@@ -85,6 +105,11 @@ namespace Exercise2
             }
 
             return 0;
+        }
+
+        private void OnDestroy()
+        {
+            NetworkData.CleanUp();
         }
     }
 }

@@ -1,8 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
-namespace Exercise2
+namespace Exercise2.Chat
 {
     [System.Serializable]
     public class Message

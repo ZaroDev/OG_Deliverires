@@ -37,8 +37,6 @@ namespace Exercise2
             }
             
             Debug.Log($"Server created with IP: {NetworkData.NetworkSocket.IPAddrStr} listening on port {NetworkData.Port}");
-            
-           
         }
 
         private void Update()
@@ -49,13 +47,8 @@ namespace Exercise2
                 _requestUpdateList = false;
             }
         }
-
-        public void StartGame()
-        {
-            SceneManager.LoadScene("Scenes/Exercise2/Lobby");
-        }
         
-        void InitServerUDP()
+        private void InitServerUDP()
         {
             Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             IPAddress ipAddress = NetworkData.GetIPAddress();
@@ -66,14 +59,14 @@ namespace Exercise2
             {
                 while(true)
                 {
-                    ReceiveUDP();
+                    AcceptConnectionsUDP();
                 }
             });
 
             _acceptThread.Start();
         }
 
-        void InitServerTCP()
+        private void InitServerTCP()
         {
             Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             IPAddress ipAddress = NetworkData.GetIPAddress();
@@ -85,7 +78,7 @@ namespace Exercise2
             _acceptThread.Start();
         } 
 
-        void UpdatePlayerList()
+        private void UpdatePlayerList()
         {
             playersText.text = "";
             foreach (var client in _clientSockets)
@@ -94,7 +87,7 @@ namespace Exercise2
             }
         }
         
-        void AcceptJob()
+        private void AcceptJob()
         {
             while (true)
             {
@@ -102,7 +95,7 @@ namespace Exercise2
             }
         }
 
-        void AcceptConnections()
+        private void AcceptConnections()
         {
             // Accept clients
             Socket client = NetworkData.NetworkSocket.Socket.Accept();
@@ -114,7 +107,7 @@ namespace Exercise2
             
             Debug.Log($"Client connected from IP [{addr}] and port [{port}]");
 
-            NetworkSocket clientSocket = new NetworkSocket("Client", client, addr, ipAddrStr);
+            NetworkSocket clientSocket = new NetworkSocket("Client", client, addr, ipAddrStr, port);
             // Start the message handling
             Thread clientThread = new Thread(() => ReceiveJob(clientSocket));
             lock (_clientMutex)
@@ -125,7 +118,7 @@ namespace Exercise2
             clientThread.Start();
         }
 
-        void ReceiveJob(NetworkSocket socket)
+        private void ReceiveJob(NetworkSocket socket)
         {
             while (true)
             {
@@ -149,28 +142,38 @@ namespace Exercise2
             }
         }
 
-        int ReceiveUDP()
+        private void AcceptConnectionsUDP()
         {
+            // Reset the end point
+            NetworkData.EndPoint = new IPEndPoint(IPAddress.Any, NetworkData.Port);
+            
             byte[] data = new byte[2048];
             int rBytes = NetworkData.NetworkSocket.Socket.ReceiveFrom(data, ref NetworkData.EndPoint);
+            
             if (rBytes == 0)
-                return rBytes;
-
+                return;
+            // Register the client "socket" as we don't have the info of the socket we just limit our selfs to get the name
+            // as we don't need any other info for it. 
             string userName = Encoding.ASCII.GetString(data, 0, rBytes);
-            Debug.Log($"Client connected with name [{userName}]");
+            
+            string ipAddrStr = NetworkData.EndPoint.ToString();
+            IPAddress addr = ((IPEndPoint)NetworkData.EndPoint).Address;
+            int port = ((IPEndPoint)NetworkData.EndPoint).Port;
+            
+            Debug.Log($"Client connected with name [{userName}] with IP [{ipAddrStr}]");
 
             lock (_clientMutex)
             {
-                _clientSockets.Add(new NetworkSocket(userName));
+                _clientSockets.Add(new NetworkSocket(userName, null, addr, ipAddrStr, port));
+                _requestUpdateList = true;
             }
-
+            
+            // Send the server name
             data = Encoding.ASCII.GetBytes(NetworkData.NetworkSocket.Name);
             NetworkData.NetworkSocket.Socket.SendTo(data, data.Length, SocketFlags.None, NetworkData.EndPoint);
-            
-            return rBytes;
         }
 
-        int ReceiveTCP(NetworkSocket socket)
+        private int ReceiveTCP(NetworkSocket socket)
         {
             byte[] data = new byte[2048];
             int rBytes = socket.Socket.Receive(data);

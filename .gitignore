@@ -9,6 +9,7 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
+/[Dd]elivery/
 
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data
@@ -70,3 +71,8 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+.idea/.idea.Unity-Threads/.idea/discord.xml
+.idea/.idea.Unity-Threads/.idea/indexLayout.xml
+.idea/.idea.Unity-Threads/.idea/projectSettingsUpdater.xml
+.idea/.idea.Unity-Threads/.idea/vcs.xml
+.idea/.idea.Unity-Threads/.idea/workspace.xml

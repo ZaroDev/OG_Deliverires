@@ -1,11 +1,11 @@
-using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
 
-namespace Exercise2
+namespace Exercise2.Chat
 {
     public class ChatServer : MonoBehaviour
     {
@@ -19,10 +19,23 @@ namespace Exercise2
         {
             _lobbyManager = GetComponent<LobbyManager>();
             _chatMessages = _lobbyManager.chatMessages;
+            _lobbyManager.StartClientChat();
             
             foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
             {
-                Thread clientThread = new Thread(() => MessageJob(client));
+                var clientThread = new Thread(() =>
+                {
+                    var data = Encoding.ASCII.GetBytes("Connected");
+                    if (NetworkData.ProtocolType == ProtocolType.Tcp)
+                    {
+                        client.Socket.Send(data);
+                    }
+                    else
+                    {
+                        NetworkData.NetworkSocket.Socket.SendTo(data, SocketFlags.None, client.EndPoint);
+                    }
+                    MessageJob(client);
+                });
                 _messageThread.Add(clientThread);
                 clientThread.Start();
             }
@@ -33,7 +46,7 @@ namespace Exercise2
             if (_requestUpdateMessages)
             {
                 _lobbyManager.UpdateMessageBox();
-                lock(_clientMutex)
+                lock (_clientMutex)
                     _requestUpdateMessages = false;
             }
         }
@@ -42,67 +55,78 @@ namespace Exercise2
         {
             while (true)
             {
-                int rBytes = NetworkData.ProtocolType == ProtocolType.Tcp ? ReceiveMessagesTCP(socket) : ReceiveMessagesUDP();
-                
-                lock(_clientMutex)
+                var rBytes = NetworkData.ProtocolType == ProtocolType.Tcp
+                    ? ReceiveMessagesTCP(socket)
+                    : ReceiveMessagesUDP();
+
+                lock (_clientMutex)
                     _requestUpdateMessages = true;
+
+                if (rBytes != 0)
+                    continue;
                 
                 // Handle client disconnection
-                if (rBytes == 0)
+                lock (_clientMutex)
                 {
+                    var msg = $"Disconnected client [{socket.Name}] from IP [{socket.IPAddrStr}]";
+                    Debug.Log(msg);
                     lock (_clientMutex)
                     {
-                        string msg = $"Disconnected client [{socket.Name}] from IP [{socket.IPAddrStr}]";
-                        Debug.Log(msg);
-                        lock (_clientMutex)
-                        {
-                            _chatMessages.Add(new Message(null, msg, null));
-                        }
-                        ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients.Remove(socket);
+                        _chatMessages.Add(new Message(null, msg, null));
                     }
-                    break;
+
+                    ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients.Remove(socket);
                 }
+
+                break;
             }
         }
 
-        int ReceiveMessagesTCP(NetworkSocket socket)
+        private int ReceiveMessagesTCP(NetworkSocket socket)
         {
-            byte[] data = new byte[2048];
-            int rBytes = socket.Socket.Receive(data);
+            var data = new byte[2048];
+            var rBytes = socket.Socket.Receive(data);
             if (rBytes == 0)
                 return rBytes;
 
             string message = Encoding.ASCII.GetString(data, 0, rBytes);
             Debug.Log($"Server received message: {message}");
-            
+
             // Add the message and replicate to all clients
             lock (_clientMutex)
             {
                 _chatMessages.Add(JsonUtility.FromJson<Message>(message));
-                
+
                 foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
                 {
                     client.Socket.Send(data);
                 }
             }
+
             return rBytes;
         }
-        
-        int ReceiveMessagesUDP()
+
+        private int ReceiveMessagesUDP()
         {
-            byte[] data = new byte[2048];
-            int rBytes = NetworkData.NetworkSocket.Socket.ReceiveFrom(data, SocketFlags.None, ref NetworkData.EndPoint);
+            // Reset the end point
+            NetworkData.EndPoint = new IPEndPoint(IPAddress.Any, NetworkData.Port);
             
-            string message = Encoding.ASCII.GetString(data, 0, rBytes);
+            var data = new byte[2048];
+            var rBytes = NetworkData.NetworkSocket.Socket.ReceiveFrom(data, SocketFlags.None, ref NetworkData.EndPoint);
+
+            var message = Encoding.ASCII.GetString(data, 0, rBytes);
             Debug.Log($"Server received message: {message}");
-            
+
             // Add the message and replicate to all clients
             lock (_clientMutex)
             {
                 _chatMessages.Add(JsonUtility.FromJson<Message>(message));
+
+                foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
+                {
+                    NetworkData.NetworkSocket.Socket.SendTo(data, client.EndPoint);
+                }
             }
-            NetworkData.NetworkSocket.Socket.SendTo(data, NetworkData.EndPoint);
-            
             return rBytes;
         }
 

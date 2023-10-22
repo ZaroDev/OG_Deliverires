@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
@@ -15,25 +16,29 @@ namespace Exercise2
     public class NetworkSocket
     {
         public string Name;
-        public string IPAddrStr = "127.0.0.1";
+        public readonly string IPAddrStr = "127.0.0.1";
         public ConnectionType ConnectionType;
         public IPAddress IPAddress;
         public Socket Socket;
+
+        public IPEndPoint EndPoint;
 
         public NetworkSocket(string name)
         {
             Name = name;
         }
 
-        public NetworkSocket(string name, Socket socket, IPAddress ipAddress, string ipAddressStr)
+        public NetworkSocket(string name, Socket socket, IPAddress ipAddress, string ipAddressStr, int port)
         {
             Name = name;
             Socket = socket;
             IPAddress = ipAddress;
             IPAddrStr = ipAddressStr;
             ConnectionType = ConnectionType.Client;
-        }
 
+            EndPoint = new IPEndPoint(ipAddress, port);
+        }
+        
         ~NetworkSocket()
         {
             Debug.Log("Closing network socket");
@@ -41,6 +46,7 @@ namespace Exercise2
             {
                 Socket.Shutdown(SocketShutdown.Both);
             }
+
             Socket.Close();
         }
     }
@@ -48,8 +54,9 @@ namespace Exercise2
     public class ServerNetworkSocket : NetworkSocket
     {
         public List<NetworkSocket> ConnectedClients = new();
-        public ServerNetworkSocket(string name,Socket socket, IPAddress ipAddress, string ipAddressStr)
-            : base(name, socket, ipAddress, ipAddressStr)
+
+        public ServerNetworkSocket(string name, Socket socket, IPAddress ipAddress, string ipAddressStr)
+            : base(name, socket, ipAddress, ipAddressStr, NetworkData.Port)
         {
             ConnectionType = ConnectionType.Host;
         }
@@ -61,6 +68,7 @@ namespace Exercise2
             {
                 Socket.Shutdown(SocketShutdown.Both);
             }
+
             Socket.Close();
 
             ConnectedClients.Clear();
@@ -70,10 +78,10 @@ namespace Exercise2
     public static class NetworkData
     {
         public static NetworkSocket NetworkSocket;
-        public static int Port = 6969;
+        public const int Port = 6969;
         public static EndPoint EndPoint;
         public static ProtocolType ProtocolType = ProtocolType.Tcp;
-       
+
         public static IPAddress GetIPAddress()
         {
             IPAddress hostIp = IPAddress.Any;
@@ -88,6 +96,12 @@ namespace Exercise2
 
             return hostIp;
         }
+
+        public static void CleanUp()
+        {
+            NetworkSocket = null;
+            EndPoint = null;
+            ProtocolType = ProtocolType.Tcp;
+        }
     }
-    
 }

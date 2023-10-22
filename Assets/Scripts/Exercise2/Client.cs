@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Exercise2.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -16,6 +17,7 @@ namespace Exercise2
 
         private bool _connected = false;
         private bool _disconnected = false;
+        
         public void ConnectToServer()
         {
             if (IP == "")
@@ -31,13 +33,13 @@ namespace Exercise2
                 Debug.LogError("Couldn't parse ip address.");
                 return;
             }
-            
+
             // Connect to the server
             NetworkData.EndPoint = new IPEndPoint(ipAddress, NetworkData.Port);
             Socket clientSocket = new Socket(ipAddress.AddressFamily,
                 NetworkData.ProtocolType == ProtocolType.Tcp ? SocketType.Stream : SocketType.Dgram,
                 NetworkData.ProtocolType);
-            
+
             try
             {
                 clientSocket.Connect(NetworkData.EndPoint);
@@ -51,8 +53,9 @@ namespace Exercise2
                 return;
             }
 
-            NetworkData.NetworkSocket = new NetworkSocket(PlayerName, clientSocket, ipAddress, IP);
+            NetworkData.NetworkSocket = new NetworkSocket(PlayerName, clientSocket, ipAddress, IP, NetworkData.Port);
         }
+
         void SendToServerJob()
         {
             while (true)
@@ -66,6 +69,7 @@ namespace Exercise2
                     _disconnected = true;
                     break;
                 }
+
                 // Handle lobby connection
                 Debug.Log("Successfully connected to server traveling to lobby");
                 _connected = true;
@@ -82,7 +86,7 @@ namespace Exercise2
             int rBytes = NetworkData.NetworkSocket.Socket.Receive(data);
             string serverName = Encoding.ASCII.GetString(data, 0, rBytes);
             Debug.Log($"Connected to server {serverName}");
-            
+
             return rBytes;
         }
 
@@ -95,7 +99,7 @@ namespace Exercise2
             int rBytes = NetworkData.NetworkSocket.Socket.ReceiveFrom(data, ref NetworkData.EndPoint);
             string serverName = Encoding.ASCII.GetString(data, 0, rBytes);
             Debug.Log($"Connected to server {serverName}");
-            
+
             return rBytes;
         }
 

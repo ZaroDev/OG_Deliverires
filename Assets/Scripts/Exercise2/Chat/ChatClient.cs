@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
@@ -51,9 +52,10 @@ namespace Exercise2.Chat
         private void ReceiveHostStart()
         {
             // Wait for the host to confirm the start of the game
+            try
             {
                 var rBytes = ReceiveStart();
-                
+
                 if (HandleDisconnection(rBytes))
                     return;
 
@@ -61,6 +63,10 @@ namespace Exercise2.Chat
                 {
                     _startChat = true;
                 }
+            }
+            catch (SocketException)
+            {
+                return;
             }
             
             ReceiveMessageJob();
@@ -70,7 +76,15 @@ namespace Exercise2.Chat
         {
             while (true)
             {
-                var rBytes = NetworkData.ProtocolType == ProtocolType.Tcp ? ReceiveMessagesTCP() : ReceiveMessagesUDP();
+                var rBytes = 0;
+                try
+                {
+                    rBytes = NetworkData.ProtocolType == ProtocolType.Tcp ? ReceiveMessagesTCP() : ReceiveMessagesUDP();
+                }
+                catch (SocketException)
+                {
+                    return;
+                }
                 
                 lock (_mutex)
                     _requestUpdateMessages = true;
@@ -97,7 +111,6 @@ namespace Exercise2.Chat
             }
 
             return true;
-
         }
 
         private int ReceiveStart()
@@ -120,7 +133,16 @@ namespace Exercise2.Chat
             
             lock (_mutex)
             {
-                _chatMessages.Add(JsonUtility.FromJson<Message>(message));
+                // If the server sends us a messages which type isn't a Message it means that the server has disconnected
+                try
+                {
+                    var chatMessage = JsonUtility.FromJson<Message>(message);
+                    _chatMessages.Add(chatMessage);
+                }
+                catch (Exception)
+                {
+                    return 0;
+                }
             }
             return rBytes;
         }
@@ -137,7 +159,16 @@ namespace Exercise2.Chat
             
             lock (_mutex)
             {
-                _chatMessages.Add(JsonUtility.FromJson<Message>(message));
+                // If the server sends us a messages which type isn't a Message it means that the server has disconnected
+                try
+                {
+                    var chatMessage = JsonUtility.FromJson<Message>(message);
+                    _chatMessages.Add(chatMessage);
+                }
+                catch (Exception)
+                {
+                    return 0;
+                }
             }
             
             return rBytes;
@@ -147,7 +178,7 @@ namespace Exercise2.Chat
         {
             if (_messageThread is { IsAlive: true })
             {
-                _messageThread.Abort();
+                _messageThread.Join();
             }
         }
     }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -55,9 +56,18 @@ namespace Exercise2.Chat
         {
             while (true)
             {
-                var rBytes = NetworkData.ProtocolType == ProtocolType.Tcp
-                    ? ReceiveMessagesTCP(socket)
-                    : ReceiveMessagesUDP();
+                var rBytes = 0;
+                try
+                {
+                    rBytes = NetworkData.ProtocolType == ProtocolType.Tcp
+                        ? ReceiveMessagesTCP(socket)
+                        : ReceiveMessagesUDP();
+                }
+                catch (Exception)
+                {
+                    break;
+                }
+               
 
                 lock (_clientMutex)
                     _requestUpdateMessages = true;
@@ -79,6 +89,13 @@ namespace Exercise2.Chat
                 }
 
                 break;
+            }
+            
+            // Notify the clients that the server has disconnected
+            var data = Encoding.ASCII.GetBytes("GoodBye!");
+            foreach (var client in ((ServerNetworkSocket)NetworkData.NetworkSocket).ConnectedClients)
+            {
+                NetworkData.NetworkSocket.Socket.SendTo(data, client.EndPoint);
             }
         }
 
